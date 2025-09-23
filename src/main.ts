@@ -9,19 +9,51 @@ import Camera from './Camera';
 import {setGL} from './globals';
 import ShaderProgram, {Shader} from './rendering/gl/ShaderProgram';
 
+import { AudioController } from './audio';
+
 // Define an object with application parameters and button callbacks
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
   'Load Scene': loadScene, // A function pointer, essentially
   color1: [ 0, 128, 255 ],
-  flameSize:1
+  flameSize:1,
+  polarity: 0.5,
+  BurstSpeed: 1.,
+  WindSpeed: 0.2,
+  Brightness: 0.5
 };
 let time: number = 0;
 let icosphere: Icosphere;
 let square: Square;
 let cube: Cube;
 let prevTesselations: number = 5;
+
+let audio : AudioController = new AudioController();
+
+const buttonPlayAudio1 = {
+  myFunction: function() {
+    console.log("Button clicked!");
+    // Add any desired functionality here
+    audio.playAudio(0);
+  }
+}
+
+const buttonPlayAudio2 = {
+  myFunction: function() {
+    console.log("Button clicked!");
+    // Add any desired functionality here
+    audio.playAudio(1);
+  }
+}
+
+const buttonPause = {
+  myFunction: function() {
+    console.log("Button clicked!");
+    // Add any desired functionality here
+    audio.pauseAudio();
+  }
+}
 
 function loadScene() {
   icosphere = new Icosphere(vec3.fromValues(0, 0, 0), 1, controls.tesselations);
@@ -47,7 +79,14 @@ function main() {
   gui.add(controls, 'Load Scene');
 
   gui.addColor(controls, 'color1');
-  gui.add(controls, "flameSize", 0., 3.).step(0.1);
+  gui.add(controls, "flameSize", 0., 3.);
+  gui.add(controls, "polarity", 0.0, 0.7);
+  gui.add(controls, "BurstSpeed", 0., 5.);
+  gui.add(controls, "WindSpeed", 0., 0.75);
+  gui.add(controls, "Brightness", 0., 1);
+  gui.add(buttonPlayAudio1, "myFunction").name("Play Audio 1");
+  gui.add(buttonPlayAudio2, "myFunction").name("Play Audio 2");
+  gui.add(buttonPause, "myFunction").name("Pause Audio");
 
   // get canvas and webgl context
   const canvas = <HTMLCanvasElement> document.getElementById('canvas');
@@ -92,7 +131,15 @@ function main() {
     stats.begin();
     gl.viewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.clear();
-
+    var amp = audio.getAmplitude();
+    if(amp>0.1){
+      controls.BurstSpeed = 3;
+      controls.Brightness = amp*0.5+0.6;
+    }
+    var ampLP = audio.getLowPassAmp();
+    if(ampLP>0.1){
+      controls.flameSize = ampLP*6+1.;
+    }
     // Update geometry color for lambert shading
     renderer.geometryColor[0] = controls.color1[0] / 256.;
     renderer.geometryColor[1] = controls.color1[1] / 256.;
@@ -106,7 +153,13 @@ function main() {
     }
     var flameDir = vec4.fromValues(clickedDir[0], clickedDir[1], clickedDir[2], 0);
     vec3.normalize(clickedDir, clickedDir);
-    lambert.setFlameDir(vec4.fromValues(0, controls.flameSize, 0, 0));
+    lambert.setFlameProp(vec4.fromValues(0, 1, 0, 0), 
+      controls.flameSize, 
+      controls.polarity, 
+      controls.BurstSpeed, 
+      controls.WindSpeed,
+      controls.Brightness
+    );
     renderer.render(camera, lambert, [
       icosphere
       //cube,
@@ -127,7 +180,6 @@ function main() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.setAspectRatio(window.innerWidth / window.innerHeight);
   camera.updateProjectionMatrix();
-
   // Start the render loop
   tick();
 }

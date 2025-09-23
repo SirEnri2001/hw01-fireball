@@ -21,6 +21,10 @@ uniform mat4 u_ViewProj;    // The matrix that defines the camera's transformati
 uniform mat4 u_View;
 uniform mat4 u_ViewInv;
 uniform vec4 u_FlameDir;
+uniform float u_FlameSize;
+uniform float u_FlameBurst;
+uniform float u_BurstSpeed;
+uniform float u_WindSpeed;
 
 uniform float u_Time;
 
@@ -64,6 +68,19 @@ float Random3D1( vec3 p ) {
     return fract(sin(dot(p,vec3(127.1,311.7,217.3)))*437158.5453);
 }
 
+vec3 Random1D3(float p){
+    return fract(sin(vec3(p*127.1,p*269.5, p*365.6))*437158.5453);
+}
+
+vec3 Noise1D3(in float st){
+    float i = floor(st);
+    float f = fract(st);
+    vec3 a = Random1D3(i);
+    vec3 b = Random1D3(i+1.);
+    float u = f * f *  (3.0 - 2.0 * f);
+    return mix(a, b, u);
+}
+
 float Random1D1( float p ) {
     return fract(sin(p)*437158.5453);
 }
@@ -95,7 +112,7 @@ float Noise3D (in vec3 st) {
     return mix(m0, m1, u.z);
 }
 
-float Noise1D(in float st){
+float Noise1D1(in float st){
     float i = floor(st);
     float f = fract(st);
     float a = Random1D1(i);
@@ -215,39 +232,52 @@ float sawWave(in float x){
 float easeOutSine(float x) {
   return sin((x * PI) / 2.);
 }
+
+void calculateFlameBurst(out float burstOffset, out float burstAmp, out vec3 burstDir){
+    burstAmp = 1.;
+    burstOffset = 1.;
+    burstDir = vec3(vs_Nor);
+    vec3 Dir = 2.*Noise1D3(u_Time/100.) - vec3(1.,1.,1.);
+    vec3 FlameDir = normalize(vec3(u_FlameDir) + u_WindSpeed*Dir);
+    float dotDir = dot(normalize(burstDir - 0.8*FlameDir), normalize(FlameDir));
+    vec3 worleyUVW = burstDir - vec3(u_FlameDir) * u_Time/10.;
+    float burstNoise = dotDir * noiseWorley(worleyUVW * 0.05 * u_BurstSpeed);
+    //burstAmp *= max(0., pow(2., (dotDir - 0.7)) - 1.);
+    burstAmp *= u_FlameBurst * burstNoise * u_FlameSize;
+    burstDir = vec3(vs_Nor);
+}
+
+void calculateFlameBase(out float baseOffset, out float baseAmp, out vec3 baseDir){
+    vec3 Dir = 2.*Noise1D3(u_Time/100.) - vec3(1.,1.,1.);
+    vec3 FlameDir = normalize(vec3(u_FlameDir));
+    vec3 inNoiseUVW = vec3(vs_Nor) * (2. - 0.7*dot(vec3(vs_Nor),FlameDir)) - u_Time / 500. * pow(3., u_BurstSpeed) * FlameDir;
+    fs_NoiseUVW = inNoiseUVW;
+    baseOffset = noiseWorley(inNoiseUVW);
+    baseDir = normalize(vec3(vs_Nor));
+    float dotDir = (dot(baseDir, normalize(vec3(u_FlameDir) + u_WindSpeed*Dir)) + 1.0) * 0.5;
+    baseAmp = easeInSine(dotDir) * u_FlameSize;
+    fs_NoiseOffset = baseOffset;
+}
+
+
 void main()
 {
-    fs_Col = vs_Col;                         // Pass the vertex colors to the fragment shader for interpolation
-
     mat3 invTranspose = mat3(u_ModelInvTr);
-    fs_Nor = vec4(invTranspose * vec3(vs_Nor), 0);          // Pass the vertex normals to the fragment shader for interpolation.
-                                                            // Transform the geometry's normals by the inverse transpose of the
-                                                            // model matrix. This is necessary to ensure the normals remain
-                                                            // perpendicular to the surface after the surface is transformed by
-                                                            // the model matrix.
+    fs_Col = vs_Col;
+    fs_Nor = vec4(invTranspose * vec3(vs_Nor), 0); 
     fs_ModelNor = vs_Nor;
-    vec3 FlameDir = normalize(vec3(u_FlameDir));
-    float FlameSize = length(u_FlameDir);
-    vec3 inNoiseUVW = vec3(vs_Nor) * (2. - 0.7*dot(vec3(vs_Nor),FlameDir)) - u_Time / 500. * pow(3., FlameSize) * FlameDir;
-    fs_NoiseUVW = inNoiseUVW;
-    float noiseOffset = noiseWorley(inNoiseUVW);
-    float burstOffset = noise(inNoiseUVW * 8.0);
-    float dotDir = (dot(normalize(vs_Nor), normalize(u_FlameDir)) + 1.0) * 0.5;
-    float burstNoise = Noise1D(u_Time / 100.);
+
+    float burstOffset;
     float burstAmp;
-    if(burstNoise>0.){
-        burstAmp = 0.5*(exp(-burstNoise) + 1.);
-    }else{
-        burstAmp = 0.5*(-exp(burstNoise) + 1.);
-    }
-    burstAmp *= max(0., pow(2., (dotDir - 0.7)) - 1.);
-    burstAmp *= FlameSize;
-    vec4 burstDir = vs_Nor;
-    float noiseAmp = easeInSine(dotDir) * FlameSize;
-    fs_NoiseOffset = noiseOffset;
-    vec4 vs_offset = noiseOffset * vs_Nor * noiseAmp + burstOffset * burstAmp * burstDir;
-    vs_offset.w = 0.;
-    vec4 modelposition = u_Model * (vs_offset + vs_Pos);   // Temporarily store the transformed vertex positions for use below
+    vec3 burstDir;
+    calculateFlameBurst(burstOffset, burstAmp, burstDir);
+
+    float baseOffset;
+    float baseAmp;
+    vec3 baseDir;
+    calculateFlameBase(baseOffset, baseAmp, baseDir);
+    vec3 vs_offset = baseOffset * baseDir * baseAmp + burstOffset * burstAmp * burstDir;
+    vec4 modelposition = u_Model * (vec4(vs_offset, 0.) + vs_Pos);
 
     fs_LightVec = lightPos - modelposition;  // Compute the direction in which the light source lies
 

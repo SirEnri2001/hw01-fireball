@@ -30,6 +30,11 @@ uniform vec4 u_Eye;
 uniform vec4 u_CameraTarget;
 uniform float u_Time;
 uniform vec4 u_FlameDir;
+uniform float u_FlameSize;
+uniform float u_FlameBurst;
+uniform float u_BurstSpeed;
+uniform float u_WindSpeed;
+uniform float u_Brightness;
 
 out vec4 out_Col; // This is the final output color that you will see on your
                   // screen for the pixel that is currently being processed.
@@ -209,130 +214,10 @@ float noise( in vec3 x)
     return fbm(x, 2.0, 0.5, 4);
 }
 
-// code modified from https://www.shadertoy.com/view/XslGRr
-float map( in vec3 p, int oct )
-{
-	vec3 q = p - vec3(0.0,0.1,1.0);
-    float g = 0.5+0.5*noise( q*0.3 );
-    
-	float f;
-    f  = 0.50000*noise( q ); q = q*2.02;
-    f += 0.25000*noise( q ); q = q*2.23;
-    f += 0.12500*noise( q ); q = q*2.41;
-    f += 0.06250*noise( q ); q = q*2.62;
-    f += 0.03125*noise( q ); 
-    
-    f = mix( f*0.1-0.5, f, g*g );
-        
-    return 1.5*f - 0.5 - p.y;
-}
 float atan2(in float y, in float x)
 {
     bool s = (abs(x) > abs(y));
     return mix(PI/2.0 - atan(x,y), atan(y,x), s);
-}
-const int kDiv = 1; // make bigger for higher quality
-vec4 raymarch( in vec3 ro, in vec3 rd, in vec3 bgcol)
-{
-    // bounding planes	
-    const float yb = -5.0;
-    const float yt =  5.0;
-    float tb = (yb-ro.y)/rd.y;
-    float tt = (yt-ro.y)/rd.t;
-
-    // find tigthest possible raymarching segment
-    float tmin, tmax;
-    if( ro.y>yt )
-    {
-        // above top plane
-        if( tt<0.0 ) return vec4(0.0); // early exit
-        tmin = tt;
-        tmax = tb;
-    }
-    else
-    {
-        // inside clouds slabs
-        tmin = 0.0;
-        tmax = 60.0;
-        if( tt>0.0 ) tmax = min( tmax, tt );
-        if( tb>0.0 ) tmax = min( tmax, tb );
-    }
-    
-    // dithered near distance
-    float t = tmin + 0.1*Hash21(rd.xy);
-    // raymarch loop
-	vec4 sum = vec4(0.0);
-    for( int i=0; i<190*kDiv; i++ )
-    {
-       // step size
-       float dt = max(0.05,0.02*t/float(kDiv));
-
-       // lod
-       int oct = 5 - int( log2(1.0+t*0.5) );
-       
-       // sample cloud
-       vec3 pos = ro + t*rd;
-        
-        vec3 worldPos = ro + t*rd;
-        vec3 lighrRecvDirection = Random3D(worldPos);
-        float inCube = checkInCube(vec4(worldPos, 1.));
-        float den = 0.2 * inCube;
-       if(den>0.01 ) // if inside
-       {
-            float fTime = float(u_Time);
-            vec3 pos1 = pos;
-            pos1 *= 1./length(pos1.z);
-            float theta = fTime / 5000. * pos1.z;
-            pos1.xy = vec2(cos(theta) * pos1.x + sin(theta) * pos1.y, -sin(theta) * pos1.x + cos(theta) * pos1.y);
-            den *= fBMWorley( 2.*pos1, 2.0, 0.5, 4 );
-           vec3  lin = vec3(0.65,0.65,0.75)*1.1;
-           vec3  lin2 = vec3(0.95,0.85,0.65)*1.1;
-           vec4  col = vec4( mix( vec3(1.0,1,1), vec3(0.,0.,0.), den ), den );
-           col.xyz *=u_Color.xyz + vec3(0.1,0.1,0.1);
-           if(length(pos)<0.3){
-            col.xyz += lin / length(pos) /3.3333;
-           }
-           if(length(pos.xy)<0.2){
-           col.xyz *= lin / length(pos.xy) /3.3333;
-           }
-           if(length(pos)<0.7){
-            col.xyz *= lin2 * (0.7 - length(pos));
-           }
-           col.w    = min(col.w*8.0*dt,1.0);
-           col.rgb *= col.a;
-           sum += col*(1.0-sum.a);
-       }
-       // advance ray
-       t += dt;
-       // until far clip or full opacity
-       if( t>tmax || sum.a>0.99 ) break;
-    }
-
-    return clamp( sum, 0.0, 1.0 );
-}
-
-
-mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
-{
-	vec3 cw = normalize(ta-ro);
-	vec3 cp = vec3(sin(cr), cos(cr),0.0);
-	vec3 cu = normalize( cross(cw,cp) );
-	vec3 cv = normalize( cross(cu,cw) );
-    return mat3( cu, cv, cw );
-}
-
-void main1(){
-    vec2 fRes = vec2(u_Resolution);
-    vec2 p = (2.*gl_FragCoord.xy-fRes.xy)/fRes.y;
-
-    // camera
-    vec3 ro = u_Eye.xyz;
-	vec3 ta = u_CameraTarget.xyz;
-    mat3 ca = setCamera( ro, ta, 0.);
-    // ray
-    vec3 rd = ca * normalize( vec3(p.xy,1.5));
-    out_Col = raymarch( ro, rd, vec3(0.));
-    out_Col.w = 1.;
 }
 
 // cosine based palette, 4 vec3 params
@@ -341,17 +226,29 @@ vec3 palette( in float t, in vec3 a, in vec3 b, in vec3 c, in vec3 d )
     return a + b*cos( 6.283185*(c*t+d) );
 }
 
-vec3 fire_palette(in float t){
-    return palette((1.-t)*(1.-t), vec3(0.5, 0.5, 0.5),vec3(0.5, 0.5, 0.5), vec3(1.0, 1.0, 1.0), vec3(0.00, 0.10, 0.20));
+vec3 default_fireball_palette[] = vec3[](
+    vec3(0.5,0.5,0.5), vec3(0.5, 0.5, 0.5), vec3(1., 1., 1.), vec3(0.2, 0.1, 0.0)
+);
+vec3 default_fireball_palette1[] = vec3[](
+vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(2.0,1.0,0.0),vec3(0.5,0.20,0.25)
+);
+vec3 black_white_palette[] = vec3[](
+vec3(0.,0.,0.),vec3(1.,1.,1.),vec3(0.25,0.25,0.25),vec3(0.75,0.75,0.75)
+);
+
+vec3 fire_palette(in float t, in vec3 args_palette[4]){
+    return palette(t, args_palette[0],args_palette[1], args_palette[2], args_palette[3]);
 }
 
 void main()
 {
     // Material base color (before shading)
     vec3 FlameDir = normalize(vec3(u_FlameDir));
-    float FlameSize = length(u_FlameDir);
-    float FlameAmp = (noise(fs_NoiseUVW * 4.)+fs_NoiseOffset)*0.5 * FlameSize;
-    float FireTemperature = atan(FlameAmp*2.) / PI * 2.;
-    out_Col = vec4(fire_palette(FireTemperature), 1.);
+    float FlameSize = u_FlameSize;
+    float FlameAmp = (noise(fs_NoiseUVW * 4.)+fs_NoiseOffset)*0.5;
+
+    float t = min(1., max(0., mix(0.0+u_Brightness*0.3, 0.3+u_Brightness * 0.7, FlameAmp)));
+
+    out_Col = vec4(fire_palette(t, default_fireball_palette), 1.);
     return;
 }

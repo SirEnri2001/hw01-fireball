@@ -36,6 +36,11 @@ class ShaderProgram {
   unifCameraTarget :  WebGLUniformLocation;
   unifTime :  WebGLUniformLocation;
   unifFlameDir :  WebGLUniformLocation;
+  unifFlameSize :  WebGLUniformLocation;
+  unifFlameBurst :  WebGLUniformLocation;
+  unifBurstSpeed :  WebGLUniformLocation;
+  unifWindSpeed :  WebGLUniformLocation;
+  unifBrightness : WebGLUniformLocation;
 
   constructor(shaders: Array<Shader>) {
     this.prog = gl.createProgram();
@@ -62,6 +67,11 @@ class ShaderProgram {
     this.unifCameraTarget = gl.getUniformLocation(this.prog, "u_CameraTarget");
     this.unifTime = gl.getUniformLocation(this.prog, "u_Time");
     this.unifFlameDir = gl.getUniformLocation(this.prog, "u_FlameDir");
+    this.unifFlameSize = gl.getUniformLocation(this.prog, "u_FlameSize");
+    this.unifFlameBurst = gl.getUniformLocation(this.prog, "u_FlameBurst");
+    this.unifBurstSpeed = gl.getUniformLocation(this.prog, "u_BurstSpeed");
+    this.unifWindSpeed = gl.getUniformLocation(this.prog, "u_WindSpeed");
+    this.unifBrightness = gl.getUniformLocation(this.prog, "u_Brightness");
   }
 
   use() {
@@ -70,10 +80,25 @@ class ShaderProgram {
       activeProgram = this.prog;
     }
   }
-  setFlameDir(dir:vec4){
+  setFlameProp(dir:vec4, size: number, burst: number, burstSpeed: number, windSpeed: number, brightness: number){
     this.use();
     if(this.unifFlameDir!==-1){
       gl.uniform4fv(this.unifFlameDir, dir);
+    }
+    if(this.unifFlameSize!==-1){
+      gl.uniform1f(this.unifFlameSize, size);
+    }
+    if(this.unifFlameBurst!==-1){
+      gl.uniform1f(this.unifFlameBurst, burst);
+    }
+    if(this.unifBurstSpeed!==-1){
+      gl.uniform1f(this.unifBurstSpeed, burstSpeed);
+    }
+    if(this.unifWindSpeed!==-1){
+      gl.uniform1f(this.unifWindSpeed, windSpeed);
+    }
+    if(this.unifBrightness!==-1){
+      gl.uniform1f(this.unifBrightness, brightness);
     }
   }
 
