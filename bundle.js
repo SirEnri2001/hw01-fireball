@@ -11018,74 +11018,119 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   AudioController: () => (/* binding */ AudioController)
 /* harmony export */ });
+var audioCtx;
+var source;
+var source2;
+var audioElement = document.createElement('audio');
+var audioElement2 = document.createElement('audio');
+audioElement.style['position'] = 'fixed';
+audioElement.controls = false;
+audioElement.src = "./audio.mp3";
+audioElement.crossOrigin = 'anonymous';
+document.body.insertBefore(audioElement, document.body.firstElementChild);
+audioElement2.style['position'] = 'fixed';
+audioElement2.controls = false;
+audioElement2.src = "./audio2.mp3";
+audioElement2.crossOrigin = 'anonymous';
+document.body.insertBefore(audioElement2, document.body.firstElementChild);
+var analyser;
+var bufferLength;
+var dataArray;
+var filter;
+var analyserLowPass;
+function init() {
+    audioCtx = new AudioContext();
+    if (audioCtx.state != "running") {
+        console.log("ctx is not running!");
+        console.log("ctx state " + audioCtx.state);
+        audioCtx.resume().then(() => {
+            console.log('AudioContext resumed successfully!');
+            source = new MediaElementAudioSourceNode(audioCtx, {
+                mediaElement: audioElement,
+            });
+            if (source) {
+                console.log("source channel count" + source.numberOfOutputs);
+            }
+            source.disconnect();
+            source.connect(audioCtx.destination);
+            // Now you can play audio
+        }).catch(error => {
+            console.error('Error resuming AudioContext:', error);
+        });
+    }
+    audioCtx.addEventListener('statechange', () => {
+        console.log('AudioContext state:', audioCtx.state);
+    });
+    source = new MediaElementAudioSourceNode(audioCtx, {
+        mediaElement: audioElement,
+    });
+    source2 = new MediaElementAudioSourceNode(audioCtx, {
+        mediaElement: audioElement2,
+    });
+    if (source) {
+        console.log("source channel count" + source.numberOfOutputs);
+    }
+    if (source2) {
+        console.log("source channel count" + source2.numberOfOutputs);
+    }
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 64; // Set FFT size (power of 2, e.g., 32, 64, ..., 32768)
+    analyserLowPass = audioCtx.createAnalyser();
+    analyserLowPass.fftSize = 2048;
+    bufferLength = analyser.fftSize;
+    dataArray = new Uint8Array(bufferLength); // For byte data
+    filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(100, audioCtx.currentTime); // e.g., low-pass filter at 10
+    filter.gain.setValueAtTime(2, audioCtx.currentTime);
+    filter.Q.setValueAtTime(6., audioCtx.currentTime);
+    source.connect(filter).connect(analyserLowPass);
+    source.connect(analyser).connect(audioCtx.destination);
+    source2.connect(filter).connect(analyserLowPass);
+    source2.connect(analyser).connect(audioCtx.destination);
+}
 class AudioController {
     constructor() {
-        this.audioElement = document.createElement('audio');
-        this.audioElement.style['position'] = 'fixed';
-        this.audioElement.controls = true;
-        this.audioElement.src = "./audio.mp3";
-        this.audioElement.crossOrigin = 'anonymous';
-        this.audio2Element = document.createElement('audio');
-        this.audio2Element.controls = false;
-        this.audio2Element.src = "./audio2.mp3";
-        this.audio2Element.crossOrigin = 'anonymous';
-        this.audioCtx = new AudioContext();
-        this.analyser = this.audioCtx.createAnalyser();
-        this.analyser.fftSize = 2048; // Set FFT size (power of 2, e.g., 32, 64, ..., 32768)
-        this.analyserLowPass = this.audioCtx.createAnalyser();
-        this.analyserLowPass.fftSize = 2048;
-        this.bufferLength = this.analyser.fftSize;
-        this.dataArray = new Uint8Array(this.bufferLength); // For byte data
-        this.filter = this.audioCtx.createBiquadFilter();
-        this.filter.type = 'lowpass';
-        this.filter.frequency.setValueAtTime(250, this.audioCtx.currentTime); // e.g., low-pass filter at 1000 Hz
-        this.filter.gain.setValueAtTime(2, this.audioCtx.currentTime);
-        this.filter.Q.setValueAtTime(8., this.audioCtx.currentTime);
-        this.source = new MediaElementAudioSourceNode(this.audioCtx, {
-            mediaElement: this.audioElement,
-        });
-        this.source2 = new MediaElementAudioSourceNode(this.audioCtx, {
-            mediaElement: this.audio2Element,
-        });
-        this.source.connect(this.analyser);
-        this.source2.connect(this.analyser);
-        this.analyser.connect(this.audioCtx.destination); // Connect to output if you want to hear it
-        this.source.connect(this.filter);
-        this.source2.connect(this.filter);
-        this.filter.connect(this.analyserLowPass);
+        this.initialized = false;
     }
     playAudio(index) {
-        this.audioElement.pause();
-        this.audio2Element.pause();
-        alert("Playing audio ...");
-        var curAudio = index == 0 ? this.audioElement : this.audio2Element;
+        if (!audioCtx) {
+            console.log("Init ctx");
+            init();
+        }
+        this.initialized = true;
+        audioElement.pause();
+        // this.audio2Element.pause();
+        var curAudio = index == 0 ? audioElement : audioElement2;
         curAudio.play();
     }
     pauseAudio() {
         console.log("AUDIO PAUSED");
-        this.audioElement.pause();
-        this.audio2Element.pause();
+        audioElement.pause();
+        //this.audio2Element.pause();
     }
     getAmplitude() {
-        this.analyser.getByteTimeDomainData(this.dataArray); // Fills dataArray with waveform data
+        analyser.getByteTimeDomainData(dataArray); // Fills dataArray with waveform data
         // Calculate average amplitude (e.g., RMS)
         let sumSquares = 0;
-        for (let i = 0; i < this.bufferLength; i++) {
-            const value = (this.dataArray[i] - 128) / 128; // Normalize to -1 to 1 range
+        for (let i = 0; i < bufferLength; i++) {
+            const value = (dataArray[i] - 128) / 128; // Normalize to -1 to 1 range
             sumSquares += value * value;
         }
-        const rms = Math.sqrt(sumSquares / this.bufferLength);
+        const rms = Math.sqrt(sumSquares / bufferLength);
+        //console.log("amp "+rms);
         return rms;
     }
     getLowPassAmp() {
-        this.analyserLowPass.getByteTimeDomainData(this.dataArray); // Fills dataArray with waveform data
+        analyserLowPass.getByteTimeDomainData(dataArray); // Fills dataArray with waveform data
         // Calculate average amplitude (e.g., RMS)
         let sumSquares = 0;
-        for (let i = 0; i < this.bufferLength; i++) {
-            const value = (this.dataArray[i] - 128) / 128; // Normalize to -1 to 1 range
+        for (let i = 0; i < bufferLength; i++) {
+            const value = (dataArray[i] - 128) / 128; // Normalize to -1 to 1 range
             sumSquares += value * value;
         }
-        const rms = Math.sqrt(sumSquares / this.bufferLength);
+        const rms = Math.sqrt(sumSquares / bufferLength);
+        //console.log("amp LP "+rms);
         return rms;
     }
 }
@@ -11866,16 +11911,12 @@ var playingAudioIndex = -1;
 var htmlButton = document.createElement('button');
 const buttonPlayAudio1 = {
     myFunction: function () {
-        console.log("Button clicked!");
-        // Add any desired functionality here
-        playingAudioIndex = 0;
+        audio.playAudio(0);
     }
 };
 const buttonPlayAudio2 = {
     myFunction: function () {
-        console.log("Button clicked!");
-        // Add any desired functionality here
-        playingAudioIndex = 1;
+        audio.playAudio(1);
     }
 };
 const buttonPause = {
@@ -11907,10 +11948,10 @@ function main() {
     gui.add(controls, 'tesselations', 0, 8).step(1);
     gui.add(controls, 'Load Scene');
     gui.addColor(controls, 'color1');
-    gui.add(controls, "flameSize", 0., 3.);
-    gui.add(controls, "polarity", 0.0, 0.7);
+    gui.add(controls, "flameSize", 0., 3.).name("Fire Size");
+    gui.add(controls, "polarity", 0.0, 0.7).name("Shape");
     gui.add(controls, "BurstSpeed", 0., 5.);
-    gui.add(controls, "WindSpeed", 0., 0.75);
+    gui.add(controls, "WindSpeed", 0., 0.75).name("Wind");
     gui.add(controls, "Brightness", 0., 1);
     gui.add(buttonPlayAudio1, "myFunction").name("Play Audio 1");
     gui.add(buttonPlayAudio2, "myFunction").name("Play Audio 2");
@@ -11938,18 +11979,6 @@ function main() {
         clickedDir[1] = event.clientY - height / 2.;
     }
     document.addEventListener("click", printMousePos);
-    // add the newly created element and its content into the DOM
-    const currentDiv = document.body;
-    htmlButton.innerText = "Play audio 1";
-    htmlButton.style['position'] = "fixed";
-    htmlButton.addEventListener("click", () => {
-        console.log("Playing");
-        audio.audioElement.play();
-    });
-    document.body.insertBefore(htmlButton, document.body.firstElementChild);
-    // document.body.insertBefore(audio.audio2Element, document.body.firstElementChild);
-    document.body.insertBefore(audio.audio2Element, document.body.firstElementChild);
-    document.body.insertBefore(audio.audioElement, document.body.firstElementChild);
     const camera = new _Camera__WEBPACK_IMPORTED_MODULE_7__["default"](gl_matrix__WEBPACK_IMPORTED_MODULE_0__.fromValues(0, 0, 5), gl_matrix__WEBPACK_IMPORTED_MODULE_0__.fromValues(0, 0, 0));
     const renderer = new _rendering_gl_OpenGLRenderer__WEBPACK_IMPORTED_MODULE_6__["default"](canvas);
     renderer.setClearColor(0.2, 0.2, 0.2, 1);
@@ -11964,15 +11993,17 @@ function main() {
         stats.begin();
         gl.viewport(0, 0, window.innerWidth, window.innerHeight);
         renderer.clear();
-        // var amp = audio.getAmplitude();
-        // if(amp>0.1){
-        //   controls.BurstSpeed = 3;
-        //   controls.Brightness = amp*0.5+0.6;
-        // }
-        // var ampLP = audio.getLowPassAmp();
-        // if(ampLP>0.1){
-        //   controls.flameSize = ampLP*6+1.;
-        // }
+        if (audio.initialized) {
+            var amp1 = audio.getAmplitude();
+            var amp2 = audio.getLowPassAmp();
+            if (amp1 > 0.1) {
+                controls.Brightness = amp1 * 1.5 + 0.5;
+            }
+            if (amp2 > 0.1) {
+                controls.BurstSpeed = 2.5;
+                controls.flameSize = amp2 * 1.5 + 1.;
+            }
+        }
         // Update geometry color for lambert shading
         renderer.geometryColor[0] = controls.color1[0] / 256.;
         renderer.geometryColor[1] = controls.color1[1] / 256.;
