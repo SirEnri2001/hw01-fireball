@@ -10,9 +10,17 @@ export class AudioController{
     source : MediaElementAudioSourceNode;
     source2 : MediaElementAudioSourceNode;
     constructor(){
-        this.audioElement = new Audio('./audio.mp3');
-        this.audio2Element = new Audio('./audio2.mp3');
+        this.audioElement = document.createElement('audio');
+        this.audioElement.style['position'] = 'fixed';
+        this.audioElement.controls = true;
+        this.audioElement.src = "./audio.mp3";
         this.audioElement.crossOrigin = 'anonymous';
+
+        this.audio2Element = document.createElement('audio');
+        this.audio2Element.controls = false;
+        this.audio2Element.src = "./audio2.mp3";
+        this.audio2Element.crossOrigin = 'anonymous';
+
         this.audioCtx = new AudioContext();
         this.analyser = this.audioCtx.createAnalyser();
         this.analyser.fftSize = 2048; // Set FFT size (power of 2, e.g., 32, 64, ..., 32768)
@@ -27,8 +35,12 @@ export class AudioController{
         this.filter.Q.setValueAtTime(8.,  this.audioCtx.currentTime);
 
         
-        this.source = this.audioCtx.createMediaElementSource(this.audioElement);
-        this.source2 = this.audioCtx.createMediaElementSource(this.audio2Element);
+        this.source = new MediaElementAudioSourceNode(this.audioCtx, {
+            mediaElement: this.audioElement,
+          });
+        this.source2 = new MediaElementAudioSourceNode(this.audioCtx, {
+            mediaElement: this.audio2Element,
+          });
         this.source.connect(this.analyser);
         this.source2.connect(this.analyser);
         this.analyser.connect(this.audioCtx.destination); // Connect to output if you want to hear it
@@ -38,9 +50,9 @@ export class AudioController{
     }
 
     playAudio(index:number) {
-        console.log("AUDIO PLAYED");
         this.audioElement.pause();
         this.audio2Element.pause();
+        alert("Playing audio ...");
         var curAudio = index==0?this.audioElement : this.audio2Element;
         curAudio.play();
     }

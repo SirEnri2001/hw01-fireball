@@ -30,12 +30,14 @@ let cube: Cube;
 let prevTesselations: number = 5;
 
 let audio : AudioController = new AudioController();
+var playingAudioIndex = -1;
+var htmlButton = document.createElement('button');
 
 const buttonPlayAudio1 = {
   myFunction: function() {
     console.log("Button clicked!");
     // Add any desired functionality here
-    audio.playAudio(0);
+    playingAudioIndex = 0;
   }
 }
 
@@ -43,7 +45,7 @@ const buttonPlayAudio2 = {
   myFunction: function() {
     console.log("Button clicked!");
     // Add any desired functionality here
-    audio.playAudio(1);
+    playingAudioIndex = 1;
   }
 }
 
@@ -70,7 +72,7 @@ function main() {
   stats.setMode(0);
   stats.domElement.style.position = 'absolute';
   stats.domElement.style.left = '0px';
-  stats.domElement.style.top = '0px';
+  stats.domElement.style.top = '50px';
   document.body.appendChild(stats.domElement);
   var clickedDir = vec3.fromValues(0, 1, 0);
   // Add controls to the gui
@@ -100,6 +102,7 @@ function main() {
 
   // Initial call to load scene
   loadScene();
+
   function printMousePos(event:any) {
     const width  = window.innerWidth || document.documentElement.clientWidth || 
     document.body.clientWidth;
@@ -111,9 +114,22 @@ function main() {
       " - clientY: " + (event.clientY - height / 2.));
       clickedDir[0] = event.clientX - width / 2.;
       clickedDir[1] = event.clientY - height / 2.;
+    
   }
-  
+
   document.addEventListener("click", printMousePos);
+  // add the newly created element and its content into the DOM
+  const currentDiv = document.body;
+  htmlButton.innerText = "Play audio 1";
+  htmlButton.style['position'] = "fixed";
+  htmlButton.addEventListener("click", ()=>{
+    console.log("Playing");
+    audio.audioElement.play();
+  });
+  document.body.insertBefore(htmlButton, document.body.firstElementChild);
+  // document.body.insertBefore(audio.audio2Element, document.body.firstElementChild);
+  document.body.insertBefore(audio.audio2Element, document.body.firstElementChild);
+  document.body.insertBefore(audio.audioElement, document.body.firstElementChild);
   const camera = new Camera(vec3.fromValues(0, 0, 5), vec3.fromValues(0, 0, 0));
 
   const renderer = new OpenGLRenderer(canvas);
@@ -131,15 +147,15 @@ function main() {
     stats.begin();
     gl.viewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.clear();
-    var amp = audio.getAmplitude();
-    if(amp>0.1){
-      controls.BurstSpeed = 3;
-      controls.Brightness = amp*0.5+0.6;
-    }
-    var ampLP = audio.getLowPassAmp();
-    if(ampLP>0.1){
-      controls.flameSize = ampLP*6+1.;
-    }
+    // var amp = audio.getAmplitude();
+    // if(amp>0.1){
+    //   controls.BurstSpeed = 3;
+    //   controls.Brightness = amp*0.5+0.6;
+    // }
+    // var ampLP = audio.getLowPassAmp();
+    // if(ampLP>0.1){
+    //   controls.flameSize = ampLP*6+1.;
+    // }
     // Update geometry color for lambert shading
     renderer.geometryColor[0] = controls.color1[0] / 256.;
     renderer.geometryColor[1] = controls.color1[1] / 256.;

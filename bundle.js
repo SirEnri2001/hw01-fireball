@@ -11020,9 +11020,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 class AudioController {
     constructor() {
-        this.audioElement = new Audio('./audio.mp3');
-        this.audio2Element = new Audio('./audio2.mp3');
+        this.audioElement = document.createElement('audio');
+        this.audioElement.style['position'] = 'fixed';
+        this.audioElement.controls = true;
+        this.audioElement.src = "./audio.mp3";
         this.audioElement.crossOrigin = 'anonymous';
+        this.audio2Element = document.createElement('audio');
+        this.audio2Element.controls = false;
+        this.audio2Element.src = "./audio2.mp3";
+        this.audio2Element.crossOrigin = 'anonymous';
         this.audioCtx = new AudioContext();
         this.analyser = this.audioCtx.createAnalyser();
         this.analyser.fftSize = 2048; // Set FFT size (power of 2, e.g., 32, 64, ..., 32768)
@@ -11035,8 +11041,12 @@ class AudioController {
         this.filter.frequency.setValueAtTime(250, this.audioCtx.currentTime); // e.g., low-pass filter at 1000 Hz
         this.filter.gain.setValueAtTime(2, this.audioCtx.currentTime);
         this.filter.Q.setValueAtTime(8., this.audioCtx.currentTime);
-        this.source = this.audioCtx.createMediaElementSource(this.audioElement);
-        this.source2 = this.audioCtx.createMediaElementSource(this.audio2Element);
+        this.source = new MediaElementAudioSourceNode(this.audioCtx, {
+            mediaElement: this.audioElement,
+        });
+        this.source2 = new MediaElementAudioSourceNode(this.audioCtx, {
+            mediaElement: this.audio2Element,
+        });
         this.source.connect(this.analyser);
         this.source2.connect(this.analyser);
         this.analyser.connect(this.audioCtx.destination); // Connect to output if you want to hear it
@@ -11045,9 +11055,9 @@ class AudioController {
         this.filter.connect(this.analyserLowPass);
     }
     playAudio(index) {
-        console.log("AUDIO PLAYED");
         this.audioElement.pause();
         this.audio2Element.pause();
+        alert("Playing audio ...");
         var curAudio = index == 0 ? this.audioElement : this.audio2Element;
         curAudio.play();
     }
@@ -11852,18 +11862,20 @@ let square;
 let cube;
 let prevTesselations = 5;
 let audio = new _audio__WEBPACK_IMPORTED_MODULE_10__.AudioController();
+var playingAudioIndex = -1;
+var htmlButton = document.createElement('button');
 const buttonPlayAudio1 = {
     myFunction: function () {
         console.log("Button clicked!");
         // Add any desired functionality here
-        audio.playAudio(0);
+        playingAudioIndex = 0;
     }
 };
 const buttonPlayAudio2 = {
     myFunction: function () {
         console.log("Button clicked!");
         // Add any desired functionality here
-        audio.playAudio(1);
+        playingAudioIndex = 1;
     }
 };
 const buttonPause = {
@@ -11887,7 +11899,7 @@ function main() {
     stats.setMode(0);
     stats.domElement.style.position = 'absolute';
     stats.domElement.style.left = '0px';
-    stats.domElement.style.top = '0px';
+    stats.domElement.style.top = '50px';
     document.body.appendChild(stats.domElement);
     var clickedDir = gl_matrix__WEBPACK_IMPORTED_MODULE_0__.fromValues(0, 1, 0);
     // Add controls to the gui
@@ -11926,6 +11938,18 @@ function main() {
         clickedDir[1] = event.clientY - height / 2.;
     }
     document.addEventListener("click", printMousePos);
+    // add the newly created element and its content into the DOM
+    const currentDiv = document.body;
+    htmlButton.innerText = "Play audio 1";
+    htmlButton.style['position'] = "fixed";
+    htmlButton.addEventListener("click", () => {
+        console.log("Playing");
+        audio.audioElement.play();
+    });
+    document.body.insertBefore(htmlButton, document.body.firstElementChild);
+    // document.body.insertBefore(audio.audio2Element, document.body.firstElementChild);
+    document.body.insertBefore(audio.audio2Element, document.body.firstElementChild);
+    document.body.insertBefore(audio.audioElement, document.body.firstElementChild);
     const camera = new _Camera__WEBPACK_IMPORTED_MODULE_7__["default"](gl_matrix__WEBPACK_IMPORTED_MODULE_0__.fromValues(0, 0, 5), gl_matrix__WEBPACK_IMPORTED_MODULE_0__.fromValues(0, 0, 0));
     const renderer = new _rendering_gl_OpenGLRenderer__WEBPACK_IMPORTED_MODULE_6__["default"](canvas);
     renderer.setClearColor(0.2, 0.2, 0.2, 1);
@@ -11940,15 +11964,15 @@ function main() {
         stats.begin();
         gl.viewport(0, 0, window.innerWidth, window.innerHeight);
         renderer.clear();
-        var amp = audio.getAmplitude();
-        if (amp > 0.1) {
-            controls.BurstSpeed = 3;
-            controls.Brightness = amp * 0.5 + 0.6;
-        }
-        var ampLP = audio.getLowPassAmp();
-        if (ampLP > 0.1) {
-            controls.flameSize = ampLP * 6 + 1.;
-        }
+        // var amp = audio.getAmplitude();
+        // if(amp>0.1){
+        //   controls.BurstSpeed = 3;
+        //   controls.Brightness = amp*0.5+0.6;
+        // }
+        // var ampLP = audio.getLowPassAmp();
+        // if(ampLP>0.1){
+        //   controls.flameSize = ampLP*6+1.;
+        // }
         // Update geometry color for lambert shading
         renderer.geometryColor[0] = controls.color1[0] / 256.;
         renderer.geometryColor[1] = controls.color1[1] / 256.;
